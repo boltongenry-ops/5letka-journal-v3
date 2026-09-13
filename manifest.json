@@ -1,0 +1,25 @@
+{
+  "name": "Пятилетка — журнал броней v3",
+  "short_name": "Пятилетка v3",
+  "description": "Журнал бронирования беседок «Пятилетка», версия 3 — общая база с версиями 1 и 2",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F2F2F7",
+  "theme_color": "#0A6FD8",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

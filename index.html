@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Пятилетка · Журнал v3</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F2F2F7" id="metaTheme">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Пятилетка v3">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Журнал бронирования беседок «Пятилетка» — версия 3. Общая база с v1 и v2.">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>try{var _t=localStorage.getItem('booking_theme')||'light';document.documentElement.setAttribute('data-theme',_t)}catch(e){}</script>
+<style>
+/* ==========================================================
+   ПЯТИЛЕТКА · ЖУРНАЛ v3
+   Устройство и внешний вид — из одобренного концепта
+   («домой — беседки, день — таймлайн», iOS-нативно).
+   Функционал полный, общая база Firestore с v1/v2.
+   ЕДИНОЕ ПРАВИЛО ЗАНЯТОСТИ: бронь занимает беседку на дату D,
+   если [start, end) пересекает [00:00 D, 00:00 D+1).
+   ========================================================== */
+:root{
+  color-scheme:light;      /* нативные контролы (чекбокс, date) в цвет нашей темы */
+  --bg:#F2F2F7;
+  --bg-out:#DCDCE1;
+  --card:#FFFFFF;
+  --card-2:#F7F7FA;
+  --sep:rgba(60,60,67,.20);
+  --sep-strong:rgba(60,60,67,.32);
+  --label:#000000;
+  --label-2:#4C4C52;      /* 8.5:1 на карточке */
+  --label-3:#6A6A6E;      /* 5.4:1 на карточке, 4.8:1 на фоне — минимум для мелкого текста */
+  --fill:rgba(118,118,128,.12);
+  --fill-2:rgba(118,118,128,.20);
+
+  --blue:#0062CC;         /* интерактивный текст/иконки: 5.8:1 на белом */
+  --blue-fill:#0A6FD8;    /* заливка под белым текстом: 4.9:1 */
+  --blue-d:#085BB4;
+  --blue-tint:rgba(0,122,255,.12);
+
+  --green:#1B7F3B;        /* 5.1:1 */
+  --green-dot:#34C759;
+  --green-tint:rgba(52,199,89,.12);
+  --orange:#9A5B00;       /* 5.4:1 */
+  --orange-dot:#FF9500;
+  --orange-tint:rgba(255,149,0,.14);
+  --gray-dot:#8E8E93;
+  --red:#C7362F;          /* 5.3:1 */
+  --red-fill:#B3282E;     /* белое на заливке: 5.5:1 */
+
+  --r-s:8px; --r:10px; --r-l:14px; --r-xl:18px;
+  --nav-h:50px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+  --sheet-anim:.36s cubic-bezier(.32,.72,0,1);
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Segoe UI',system-ui,Roboto,sans-serif;
+}
+[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0B0B0F;
+  --bg-out:#000000;
+  --card:#1A1B20;
+  --card-2:#24252B;
+  --sep:rgba(255,255,255,.14);
+  --sep-strong:rgba(255,255,255,.26);
+  --label:#FFFFFF;
+  --label-2:#A9A9B2;      /* 7.4:1 на карточке */
+  --label-3:#8E8E97;      /* 5.3:1 на карточке */
+  --fill:rgba(120,120,128,.24);
+  --fill-2:rgba(120,120,128,.36);
+
+  --blue:#4C9BFF;         /* 6.1:1 на карточке */
+  --blue-fill:#2C6FE0;    /* белое на заливке: 4.7:1 */
+  --blue-d:#2360C8;
+  --blue-tint:rgba(76,155,255,.18);
+
+  --green:#3ECF8E;        /* 8.6:1 */
+  --green-dot:#30D158;
+  --green-tint:rgba(62,207,142,.16);
+  --orange:#F0A030;       /* 8.0:1 */
+  --orange-dot:#FF9F0A;
+  --orange-tint:rgba(240,160,48,.16);
+  --gray-dot:#98989D;
+  --red:#FF6B64;          /* 6.2:1 */
+  --red-fill:#C0392F;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none !important}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--font);background:var(--bg-out);color:var(--label);
+  font-size:17px;line-height:1.35;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  -webkit-tap-highlight-color:transparent;overflow-x:hidden;
+  min-height:100vh;min-height:100dvh;
+}
+body.locked{overflow:hidden}
+button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;cursor:pointer;text-align:left}
+input,select{font-family:inherit}
+img,svg{display:block}
+.icon{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.icon-sm{width:18px;height:18px}
+
+/* ===== Доступность ===== */
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){
+  *{transition:none !important;animation:none !important}
+}
+
+/* ===== Оболочка: центрированная колонка 430px ===== */
+.app{
+  position:relative;width:100%;max-width:430px;margin:0 auto;
+  min-height:100vh;min-height:100dvh;background:var(--bg);
+  box-shadow:0 0 0 1px var(--sep);
+  display:flex;flex-direction:column;
+}
+
+/* ===== Шапка ===== */
+.hdr{
+  position:sticky;top:0;z-index:30;
+  padding:calc(8px + var(--safe-t)) 16px 10px;
+  background:var(--bg);
+  background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--sep);
+}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.brand{display:flex;align-items:center;gap:8px;min-width:0}
+.mark{
+  width:30px;height:30px;border-radius:9px;flex-shrink:0;
+  background:var(--blue-fill);color:#fff;font-weight:800;font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+}
+.brand-name{font-size:14px;font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-acts{display:flex;align-items:center;gap:2px;flex-shrink:0}
+.hdr-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-top:8px}
+.hdr-kicker{font-size:12.5px;font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:.05em}
+.hdr-title{font-size:25px;font-weight:700;letter-spacing:-.5px;margin-top:1px;line-height:1.15;text-wrap:balance}
+.hdr-sub{font-size:12.5px;color:var(--label-2);margin-top:2px;overflow-wrap:anywhere}
+.badge{
+  flex-shrink:0;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--blue);background:var(--blue-tint);padding:5px 8px;border-radius:999px;
+}
+
+/* ===== Контент ===== */
+.content{flex:1;padding:14px 0 calc(var(--nav-h) + var(--safe-b) + 26px)}
+.screen{display:none}
+.screen.active{display:block}
+
+/* ===== Сводка ===== */
+.summary{display:flex;gap:1px;margin:0 16px 18px;background:var(--sep);border-radius:var(--r-l);overflow:hidden}
+.sum-item{flex:1;min-width:0;background:var(--card);padding:12px 8px;text-align:center}
+.sum-val{font-size:22px;font-weight:700;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.sum-val.green{color:var(--green)}
+.sum-val.orange{color:var(--orange)}
+.sum-lbl{font-size:11px;color:var(--label-2);margin-top:3px;line-height:1.25}
+
+/* ===== Панель дат ===== */
+.daybar{
+  display:flex;align-items:center;gap:6px;margin:0 16px 14px;
+  background:var(--card);border-radius:var(--r-l);padding:4px;border:1px solid var(--sep);
+}
+.daybar .nav{width:44px;height:44px;min-width:44px;display:flex;align-items:center;justify-content:center;border-radius:var(--r);color:var(--blue)}
+.daybar .nav:active{background:var(--fill)}
+.dayinput{
+  flex:1;min-width:0;min-height:44px;border:none;background:none;font-size:16px;
+  text-align:center;color:var(--label);font-weight:600;font-variant-numeric:tabular-nums;
+}
+.seg{display:flex;gap:2px;background:var(--fill);border-radius:9px;padding:2px;margin:0 16px 14px}
+.seg button{flex:1;min-width:0;min-height:36px;border-radius:7px;font-size:14px;font-weight:600;color:var(--label);text-align:center;padding:7px 10px}
+.seg button.on{background:var(--card);box-shadow:0 3px 8px rgba(0,0,0,.12)}
+
+/* ===== Заголовок группы ===== */
+.sect{margin:22px 16px 7px;font-size:12.5px;font-weight:600;color:var(--label-2);text-transform:uppercase;letter-spacing:.05em}
+.sect:first-child{margin-top:0}
+
+/* ===== Сетка беседок ===== */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:0 16px}
+.gz{
+  position:relative;min-width:0;min-height:88px;padding:12px 9px 10px;border-radius:var(--r-l);
+  background:var(--card);border:1px solid var(--sep);display:flex;flex-direction:column;justify-content:space-between;
+  transition:transform .12s ease,background .15s ease;
+}
+.gz:active{transform:scale(.97);background:var(--card-2)}
+.gz-wrap{display:block;min-width:0;max-width:100%}
+.gz-num{font-size:20px;font-weight:700;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.gz-dot{position:absolute;top:13px;right:12px;width:8px;height:8px;border-radius:50%}
+.gz.s-free .gz-dot{background:var(--green-dot)}
+.gz.s-busy .gz-dot{background:var(--orange-dot)}
+.gz.s-freed .gz-dot{background:var(--gray-dot)}
+.gz.s-past .gz-dot{background:var(--gray-dot)}
+.gz-state{display:block;font-size:11.5px;font-weight:600;line-height:1.25}
+.gz.s-free .gz-state{color:var(--green)}
+.gz.s-busy .gz-state{color:var(--orange)}
+.gz.s-freed .gz-state{color:var(--label-2)}
+.gz.s-past .gz-state{color:var(--label-3)}
+.gz-note{display:block;font-size:11px;color:var(--label-3);margin-top:2px;line-height:1.25;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===== Группированные списки ===== */
+.group{margin:0 16px 18px;background:var(--card);border-radius:var(--r-l);overflow:hidden;border:1px solid var(--sep)}
+.row{display:flex;align-items:center;gap:10px;padding:10px 14px;min-height:56px;position:relative}
+.row+.row::before{content:'';position:absolute;top:0;left:14px;right:0;height:1px;background:var(--sep)}
+.row:active{background:var(--card-2)}
+.row-time{width:52px;min-width:52px;flex-shrink:0;text-align:center}
+.row-time b{display:block;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+.row-time span{display:block;font-size:11px;color:var(--label-3);font-variant-numeric:tabular-nums}
+.row-body{flex:1;min-width:0}
+.row-name{font-size:15.5px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap;overflow-wrap:anywhere}
+.row-meta{font-size:12.5px;color:var(--label-2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-tint);padding:2px 6px;border-radius:6px;white-space:nowrap}
+.tag.muted{color:var(--label-2);background:var(--fill)}
+.row-acts{display:flex;gap:2px;flex-shrink:0}
+.ibtn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:var(--r);color:var(--blue)}
+.ibtn.red{color:var(--red)}
+.ibtn:active{background:var(--fill)}
+.empty{padding:26px 18px;text-align:center;color:var(--label-2);font-size:14px}
+
+/* ===== Журнал: панель инструментов ===== */
+.jbar{display:flex;align-items:center;gap:8px;margin:0 16px 10px}
+.search{
+  flex:1;min-width:0;min-height:44px;padding:10px 13px;border:none;border-radius:var(--r);
+  background:var(--fill);color:var(--label);font-size:16px;
+}
+.search::placeholder{color:var(--label-2)}
+.chips{display:flex;gap:7px;overflow-x:auto;margin:0 16px 10px;padding:2px 0;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto;min-height:38px;padding:8px 14px;border-radius:999px;
+  border:1px solid var(--sep);background:var(--card);color:var(--label-2);
+  font-size:13.5px;font-weight:600;text-align:center;transition:background .15s ease,color .15s ease;
+}
+.chip.on{background:var(--blue-fill);border-color:var(--blue-fill);color:#fff}
+.chip:active{background:var(--fill)}
+.chip.on:active{background:var(--blue-d)}
+.range-row{display:flex;align-items:center;gap:8px;margin:0 16px 10px;font-size:13px;color:var(--label-2)}
+.range-row label{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.rangeinput{
+  flex:1;min-width:0;min-height:44px;padding:8px 10px;border-radius:var(--r-s);border:1px solid var(--sep);
+  background:var(--card);color:var(--label);font-size:16px;font-variant-numeric:tabular-nums;
+}
+.linkbtn{color:var(--blue);font-size:13.5px;font-weight:600;min-height:44px;padding:0 6px}
+.rescount{margin:0 16px 8px;font-size:12.5px;color:var(--label-2);font-variant-numeric:tabular-nums}
+.rescount b{color:var(--label)}
+.jgroup{margin:0 16px 8px}
+
+/* ===== Таймлайн дня ===== */
+.tl-wrap{margin:0 16px 16px;background:var(--card);border-radius:var(--r-l);border:1px solid var(--sep);padding:14px 14px 16px}
+.tl-legend{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--label-2);margin-bottom:12px}
+.tl-legend b{font-weight:600;color:var(--label);font-variant-numeric:tabular-nums}
+.tl{display:flex;gap:10px}
+.tl-hours{width:42px;min-width:42px;flex-shrink:0}
+.tl-hour{height:54px;font-size:11px;color:var(--label-3);font-variant-numeric:tabular-nums;transform:translateY(-6px)}
+.tl-track{
+  position:relative;flex:1;min-width:0;border-radius:var(--r);
+  background-image:repeating-linear-gradient(to bottom,var(--sep) 0 1px,transparent 1px 54px);
+}
+.tl-block{
+  position:absolute;left:0;right:0;border-radius:9px;overflow:hidden;
+  background:var(--blue-tint);border-left:3px solid var(--blue);
+  padding:6px 9px;font-size:12px;color:var(--label);
+}
+.tl-block .t{font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+.tl-block .n{color:var(--label-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-gap{
+  position:absolute;left:0;right:0;border-radius:9px;
+  border:1px dashed var(--blue);background:var(--card);
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-size:11.5px;font-weight:600;color:var(--blue);min-height:30px;text-align:center;
+}
+.tl-gap:active{background:var(--fill)}
+.tl-now{position:absolute;left:-4px;right:-4px;height:2px;background:#FF3B30;border-radius:2px;z-index:3}
+.tl-now::before{content:'';position:absolute;left:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:#FF3B30}
+.tl-foot{font-size:11.5px;color:var(--label-3);margin-top:12px;line-height:1.45}
+
+/* ===== Шторки ===== */
+.scrim{
+  position:fixed;left:50%;transform:translateX(-50%);top:0;bottom:0;width:100%;max-width:430px;
+  background:rgba(0,0,0,.34);opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:50;
+}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;left:50%;bottom:0;width:100%;max-width:430px;z-index:60;
+  transform:translateX(-50%) translateY(110%);
+  transition:transform var(--sheet-anim);
+  background:var(--bg);border-radius:var(--r-l) var(--r-l) 0 0;
+  box-shadow:0 -10px 44px rgba(0,0,0,.22);
+  max-height:90vh;max-height:90dvh;display:flex;flex-direction:column;overflow:hidden;
+}
+.sheet.on{transform:translateX(-50%) translateY(0)}
+.sheet::before{
+  content:'';position:absolute;top:7px;left:50%;transform:translateX(-50%);
+  width:36px;height:5px;border-radius:3px;background:var(--sep-strong);pointer-events:none;
+}
+.sh-head{flex-shrink:0;padding:24px 18px 12px;border-bottom:1px solid var(--sep)}
+.sh-title{font-size:19px;font-weight:700;letter-spacing:-.4px;text-align:center;text-wrap:balance}
+.sh-sub{font-size:12.5px;color:var(--label-2);text-align:center;margin-top:3px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.sh-body{flex:1;min-height:0;overflow-y:auto;padding:16px 0;overscroll-behavior:contain}
+.sh-foot{flex-shrink:0;padding:12px 16px calc(14px + var(--safe-b));border-top:1px solid var(--sep);background:var(--bg);display:flex;gap:10px}
+.btn{flex:1;min-height:48px;border-radius:12px;font-size:16.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:7px;text-align:center}
+.btn-fill{background:var(--blue-fill);color:#fff}
+.btn-fill:active{background:var(--blue-d)}
+.btn-plain{background:var(--fill);color:var(--blue)}
+.btn-plain:active{background:var(--fill-2)}
+.btn-red{background:var(--red-fill);color:#fff}
+
+/* ===== Форма ===== */
+.form-block{margin:0 16px 16px;border-radius:var(--r-l);overflow:hidden;border:1px solid var(--sep);background:var(--card)}
+.form-row{display:flex;align-items:center;gap:12px;padding:9px 14px;background:var(--card);position:relative;min-height:50px}
+.form-row+.form-row::before{content:'';position:absolute;top:0;left:14px;right:0;height:1px;background:var(--sep)}
+.form-row label{font-size:15px;color:var(--label-2);width:104px;min-width:104px;flex-shrink:0}
+.form-row input,.form-row select{
+  flex:1;min-width:0;border:none;background:none;font-size:16px;color:var(--label);
+  text-align:right;padding:6px 0;outline:none;font-variant-numeric:tabular-nums;
+}
+.form-row input:focus,.form-row select:focus{outline:none}
+.form-row select{text-align-last:right}
+.form-row .ro{flex:1;text-align:right;font-size:16px;font-weight:600;color:var(--label);font-variant-numeric:tabular-nums}
+.form-row .req{color:var(--red);margin-left:3px}
+.form-row.err input{border-bottom:1px solid var(--red)}
+.hint{margin:0 16px 16px;padding:12px 14px;border-radius:var(--r-l);font-size:13px;line-height:1.45}
+.hint.ok{background:var(--green-tint);color:var(--green)}
+.hint.warn{background:var(--orange-tint);color:var(--orange)}
+.hint b{font-weight:700}
+.hint ul{margin:6px 0 0 16px}
+.hint li{margin-bottom:3px}
+.hint a{color:inherit;text-decoration:underline}
+
+/* ===== Таб-бар ===== */
+.tabbar{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:430px;z-index:40;
+  display:grid;grid-template-columns:repeat(5,1fr);align-items:end;
+  padding:6px 4px calc(6px + var(--safe-b));
+  background:#F9F9F9;
+  background:color-mix(in srgb,var(--bg) 86%,transparent);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-top:1px solid var(--sep);
+}
+.tab{min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--label-3);font-size:10px;font-weight:500}
+.tab.on{color:var(--blue)}
+.tab.plus{grid-column:3;justify-self:center;width:64px}
+.tab.plus .plus-circle{
+  width:48px;height:48px;border-radius:50%;background:var(--blue-fill);color:#fff;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(10,111,216,.35);
+}
+.tab.plus:active .plus-circle{background:var(--blue-d);transform:scale(.96)}
+
+/* ===== Тост ===== */
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(18px);
+  bottom:calc(var(--nav-h) + var(--safe-b) + 26px);z-index:120;
+  width:calc(100% - 32px);max-width:398px;
+  background:#1C1C1E;color:#fff;border-radius:12px;
+  padding:13px 16px;font-size:14px;font-weight:500;text-align:center;
+  opacity:0;pointer-events:none;transition:opacity .22s ease,transform .22s ease;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:#8E2020}
+.toast.info{background:#1F4E79}
+
+/* ===== Диалог подтверждения ===== */
+.dlg-overlay{
+  position:fixed;inset:0;z-index:150;display:none;align-items:center;justify-content:center;padding:20px;
+  background:rgba(0,0,0,.42);
+}
+.dlg-overlay.on{display:flex}
+.dlg{
+  width:100%;max-width:340px;background:var(--card);border-radius:var(--r-xl);padding:20px 18px 16px;
+  box-shadow:0 18px 44px rgba(0,0,0,.28);text-align:center;
+}
+.dlg-title{font-size:17px;font-weight:700;letter-spacing:-.2px}
+.dlg-text{font-size:13.5px;color:var(--label-2);line-height:1.5;margin-top:8px;overflow-wrap:anywhere}
+.dlg-acts{display:flex;gap:10px;margin-top:18px}
+
+/* ===== Вход ===== */
+.auth-overlay{
+  position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:var(--bg-out);
+}
+.auth-overlay.hidden{display:none}
+.auth-card{width:100%;max-width:370px;background:var(--card);border-radius:var(--r-xl);box-shadow:0 18px 44px rgba(0,0,0,.18);padding:28px 20px}
+.auth-logo{
+  width:54px;height:54px;margin:0 auto 14px;border-radius:14px;
+  background:var(--blue-fill);color:#fff;font-size:24px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+}
+.auth-card h2{font-size:20px;font-weight:700;letter-spacing:-.3px;text-align:center}
+.auth-sub{font-size:12.5px;color:var(--label-2);text-align:center;margin:3px 0 20px}
+.auth-input{
+  width:100%;min-height:48px;padding:11px 14px;border-radius:var(--r);border:1px solid var(--sep);
+  background:var(--fill);color:var(--label);font-size:16px;outline:none;
+}
+.auth-input+.auth-input{margin-top:10px}
+.auth-remember{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--label-2);margin-top:12px;min-height:44px}
+.auth-remember input{width:18px;height:18px;accent-color:var(--blue-fill)}
+.auth-error{display:none;margin-top:10px;font-size:13.5px;color:var(--red);font-weight:600}
+.auth-btn{
+  width:100%;min-height:48px;margin-top:16px;border-radius:12px;
+  background:var(--blue-fill);color:#fff;font-size:16.5px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;text-align:center;
+}
+.auth-btn:active{background:var(--blue-d)}
+
+/* ===== Подвал ===== */
+.foot{margin:30px 16px 6px;padding-top:14px;border-top:1px solid var(--sep);font-size:11px;color:var(--label-3);text-align:center;line-height:1.5}
+
+@media(min-width:520px){
+  .app{min-height:100dvh;box-shadow:0 0 0 1px var(--sep),0 10px 40px rgba(0,0,0,.12)}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Иконки ===== -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1.3"/><circle cx="4" cy="12" r="1.3"/><circle cx="4" cy="18" r="1.3"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L18 10a2.6 2.6 0 0 0-3.6-3.6L4 16.4V20z"/><path d="M13.6 6.8 17.2 10.4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.8h5V7M6.5 7l1 13h9l1-13"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H15"/><path d="M10 8l-4 4 4 4M6 12h9"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10M8 10.5l4 4 4-4M5 19h14"/></symbol>
+</svg>
+
+<!-- ===== ВХОД ===== -->
+<div class="auth-overlay hidden" id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">5</div>
+    <h2>Пятилетка · Журнал v3</h2>
+    <p class="auth-sub">Брони беседок · общая база с v1 и v2</p>
+    <form onsubmit="return handleLogin(event)">
+      <input type="text" class="auth-input" id="loginUser" placeholder="Логин" autocomplete="username" required>
+      <input type="password" class="auth-input" id="loginPass" placeholder="Пароль" autocomplete="current-password" required>
+      <label class="auth-remember"><input type="checkbox" id="rememberMe"> Запомнить меня</label>
+      <div class="auth-error" id="authError">Неверный логин или пароль</div>
+      <button type="submit" class="auth-btn">Войти</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// Гейт входа — до отрисовки, чтобы не мигало (ключи как в v1/v2)
+if(!sessionStorage.getItem('booking_auth_session')&&!localStorage.getItem('booking_auth_remember'))
+  document.getElementById('authOverlay').classList.remove('hidden');
+</script>
+
+<div class="app" id="app">
+
+  <!-- ===== Шапка ===== -->
+  <header class="hdr">
+    <div class="hdr-top">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">5</span>
+        <span class="brand-name">Пятилетка</span>
+        <span class="badge">v3</span>
+      </div>
+      <div class="hdr-acts">
+        <button class="ibtn" onclick="toggleTheme()" title="Сменить тему" aria-label="Сменить тему">
+          <svg class="icon" id="themeIcon"><use href="#i-moon"/></svg>
+        </button>
+        <button class="ibtn" onclick="logout()" title="Выйти" aria-label="Выйти">
+          <svg class="icon"><use href="#i-logout"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="hdr-row">
+      <div style="min-width:0">
+        <div class="hdr-kicker" id="hdrKicker">Сегодня</div>
+        <h1 class="hdr-title" id="hdrTitle">—</h1>
+        <div class="hdr-sub" id="hdrSub">—</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <!-- 1. СЕГОДНЯ -->
+    <section class="screen active" id="scToday"></section>
+
+    <!-- 2. БЕСЕДКИ -->
+    <section class="screen" id="scGazebos">
+      <div class="daybar">
+        <button class="nav" onclick="stepDay(-1)" aria-label="Предыдущий день"><svg class="icon"><use href="#i-chev-l"/></svg></button>
+        <input type="date" class="dayinput" id="gDate" onchange="onDayInput()" aria-label="Дата">
+        <button class="nav" onclick="stepDay(1)" aria-label="Следующий день"><svg class="icon"><use href="#i-chev-r"/></svg></button>
+      </div>
+      <div class="seg">
+        <button id="gSegToday" onclick="setGridDay(getTodayISO())">Сегодня</button>
+        <button id="gSegTomorrow" onclick="setGridDay(shiftISO(getTodayISO(),1))">Завтра</button>
+      </div>
+      <div class="sect" id="gSummary">—</div>
+      <div class="grid" id="gGrid"></div>
+    </section>
+
+    <!-- 3. ЖУРНАЛ -->
+    <section class="screen" id="scJournal">
+      <div class="seg">
+        <button class="on" id="jSegBook" onclick="setJournalView('book')">Заявки</button>
+        <button id="jSegArch" onclick="setJournalView('archive')">Архив</button>
+      </div>
+      <div class="jbar">
+        <input type="search" class="search" id="searchInput" placeholder="Поиск: имя, телефон, авто, беседка" oninput="renderJournal()" autocomplete="off">
+        <button class="ibtn" onclick="exportCSV()" title="Экспорт в CSV" aria-label="Экспорт в CSV">
+          <svg class="icon"><use href="#i-download"/></svg>
+        </button>
+      </div>
+      <div class="chips" id="filterChips">
+        <button class="chip" data-preset="today" onclick="setPreset('today')">Сегодня</button>
+        <button class="chip" data-preset="tomorrow" onclick="setPreset('tomorrow')">Завтра</button>
+        <button class="chip" data-preset="week" onclick="setPreset('week')">7 дней</button>
+        <button class="chip" data-preset="custom" onclick="setPreset('custom')">Период</button>
+        <button class="chip on" data-preset="all" onclick="setPreset('all')">Все</button>
+      </div>
+      <div class="range-row" id="rangeRow" hidden>
+        <label><input type="date" class="rangeinput" id="rangeFrom" onchange="onRangeInput()" aria-label="Показать с даты"></label>
+        <label><input type="date" class="rangeinput" id="rangeTo" onchange="onRangeInput()" aria-label="Показать по дату"></label>
+        <button class="linkbtn" onclick="clearRange()">Сбросить</button>
+      </div>
+      <div class="rescount" id="jCount">—</div>
+      <div id="jList"></div>
+    </section>
+
+    <!-- 4. ЗАНЯТЫЕ -->
+    <section class="screen" id="scBusy"></section>
+
+    <div class="foot">
+      Пятилетка · журнал броней v3.<br>
+      Общая база с версиями 1 и 2 — правки видны во всех сразу.
+    </div>
+  </main>
+
+  <!-- ===== Таб-бар: 5 колонок, плюс по центру ===== -->
+  <nav class="tabbar">
+    <button class="tab on" id="tToday" onclick="switchTab('today')">
+      <svg class="icon"><use href="#i-cal"/></svg><span>Сегодня</span>
+    </button>
+    <button class="tab" id="tGazebos" onclick="switchTab('gazebos')">
+      <svg class="icon"><use href="#i-grid"/></svg><span>Беседки</span>
+    </button>
+    <button class="tab plus" onclick="openNew()" aria-label="Новая бронь">
+      <span class="plus-circle"><svg class="icon"><use href="#i-plus"/></svg></span>
+    </button>
+    <button class="tab" id="tJournal" onclick="switchTab('journal')">
+      <svg class="icon"><use href="#i-list"/></svg><span>Журнал</span>
+    </button>
+    <button class="tab" id="tBusy" onclick="switchTab('busy')">
+      <svg class="icon"><use href="#i-clock"/></svg><span>Занятые</span>
+    </button>
+  </nav>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeSheets()"></div>
+
+<!-- ===== Шторка: день беседки ===== -->
+<div class="sheet" id="shGazebo" role="dialog" aria-modal="true" aria-labelledby="gzTitle">
+  <div class="sh-head">
+    <div class="sh-title" id="gzTitle">Беседка</div>
+    <div class="sh-sub" id="gzSub">—</div>
+  </div>
+  <div class="sh-body" id="gzBody"></div>
+  <div class="sh-foot">
+    <button class="btn btn-plain" onclick="closeSheets()">Закрыть</button>
+    <button class="btn btn-fill" onclick="newFromGazebo()">Забронировать</button>
+  </div>
+</div>
+
+<!-- ===== Шторка: бронь (новая / правка) ===== -->
+<div class="sheet" id="shForm" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+  <div class="sh-head">
+    <div class="sh-title" id="formTitle">Новая бронь</div>
+    <div class="sh-sub" id="formSub">Общая база — запись увидят все версии</div>
+  </div>
+  <div class="sh-body">
+    <input type="hidden" id="editId">
+    <div class="form-block">
+      <div class="form-row"><label for="fName">Имя клиента<span class="req">*</span></label>
+        <input id="fName" type="text" placeholder="Гость" autocomplete="off"></div>
+      <div class="form-row"><label for="fPhone">Телефон</label>
+        <input id="fPhone" type="tel" placeholder="+7 (___) ___-__-__" autocomplete="off"></div>
+      <div class="form-row"><label for="fGz">Беседка<span class="req">*</span></label>
+        <input id="fGz" type="text" list="gzList" placeholder="например 5 или 14/1" autocomplete="off"></div>
+      <div class="form-row"><label for="fDate">Дата<span class="req">*</span></label>
+        <input id="fDate" type="date"></div>
+      <div class="form-row"><label for="fTime">Заезд<span class="req">*</span></label>
+        <input id="fTime" type="time"></div>
+      <div class="form-row"><label for="fDur">Период</label>
+        <select id="fDur">
+          <option value="">12 часов (по умолчанию)</option>
+          <option value="12">12 часов</option>
+          <option value="15">15 часов</option>
+          <option value="24">24 часа</option>
+          <option value="36">36 часов</option>
+          <option value="48">48 часов</option>
+        </select></div>
+      <div class="form-row"><label>Окончание</label>
+        <span class="ro" id="fEnd">—</span></div>
+      <div class="form-row"><label for="fCar">Автомобиль</label>
+        <input id="fCar" type="text" placeholder="А123БВ 47" autocomplete="off"></div>
+      <div class="form-row"><label for="fPrepay">Предоплата</label>
+        <input id="fPrepay" type="text" placeholder="1 000 ₽" inputmode="numeric" autocomplete="off"></div>
+    </div>
+    <datalist id="gzList"></datalist>
+    <div class="hint ok" id="formHint">Заполните имя, беседку, дату и время заезда.</div>
+  </div>
+  <div class="sh-foot">
+    <button class="btn btn-plain" onclick="closeForm()">Отмена</button>
+    <button class="btn btn-fill" id="formSubmit" onclick="submitForm()">Создать</button>
+  </div>
+</div>
+
+<!-- ===== Подтверждение удаления ===== -->
+<div class="dlg-overlay" id="dlgOverlay" onclick="if(event.target===this)closeDlg()">
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="dlg-title" id="dlgTitle">Удалить бронь?</div>
+    <div class="dlg-text" id="dlgText">—</div>
+    <div class="dlg-acts">
+      <button class="btn btn-plain" onclick="closeDlg()">Отмена</button>
+      <button class="btn btn-red" onclick="confirmDelete()" id="dlgOk">Удалить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ==========================================================
+   1. Тема
+   ========================================================== */
+var THEME_KEY='booking_theme';
+function getTheme(){return localStorage.getItem(THEME_KEY)||'light'}
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  var ic=document.getElementById('themeIcon');
+  if(ic&&ic.querySelector('use'))ic.querySelector('use').setAttribute('href',t==='dark'?'#i-sun':'#i-moon');
+  var m=document.getElementById('metaTheme');
+  if(m)m.setAttribute('content',t==='dark'?'#0B0B0F':'#F2F2F7');
+}
+function toggleTheme(){
+  var t=getTheme()==='dark'?'light':'dark';
+  localStorage.setItem(THEME_KEY,t);
+  applyTheme(t);
+}
+applyTheme(getTheme());
+
+/* ==========================================================
+   2. Вход (логин и ключи сессии — как в v1/v2)
+   ========================================================== */
+var AUTH_SESSION='booking_auth_session';
+var AUTH_REMEMBER='booking_auth_remember';
+var VALID_USER='Admin';
+var VALID_PASS='5letka26';
+
+function isAuthenticated(){
+  return sessionStorage.getItem(AUTH_SESSION)==='true'||localStorage.getItem(AUTH_REMEMBER)==='true';
+}
+function handleLogin(e){
+  e.preventDefault();
+  var u=document.getElementById('loginUser').value.trim();
+  var p=document.getElementById('loginPass').value.trim();
+  var r=document.getElementById('rememberMe').checked;
+  var err=document.getElementById('authError');
+  if(u===VALID_USER&&p===VALID_PASS){
+    sessionStorage.setItem(AUTH_SESSION,'true');
+    if(r)localStorage.setItem(AUTH_REMEMBER,'true');
+    document.getElementById('authOverlay').classList.add('hidden');
+    document.getElementById('loginPass').value='';
+    err.style.display='none';
+    if(!_started)start();
+  }else{
+    err.style.display='block';
+    document.getElementById('loginPass').value='';
+  }
+  return false;
+}
+function logout(){
+  sessionStorage.removeItem(AUTH_SESSION);
+  localStorage.removeItem(AUTH_REMEMBER);
+  document.getElementById('authOverlay').classList.remove('hidden');
+  document.getElementById('loginPass').value='';
+  document.getElementById('authError').style.display='none';
+}
+
+/* ==========================================================
+   3. База: конфиг и коллекция — дословно как в v1/v2
+   ========================================================== */
+var firebaseConfig = {
+  apiKey: "AIzaSyAXiogs93tGaPAbSbDh3CeP1buO5d6L120",
+  authDomain: "letka-journal.firebaseapp.com",
+  projectId: "letka-journal",
+  storageBucket: "letka-journal.firebasestorage.app",
+  messagingSenderId: "62995388805",
+  appId: "1:62995388805:web:fe6a6dc2894011ff698cec"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
+var _bookings=[];
+var _bookingsReady=false;
+
+db.collection('bookings').orderBy('date').onSnapshot(function(snapshot){
+  _bookings=[];
+  snapshot.forEach(function(doc){
+    var d=doc.data();
+    d.id=doc.id;
+    if(d.archived||d.deleted)return;   // архив/удалённые не показываем
+    _bookings.push(d);
+  });
+  _bookingsReady=true;
+  render();
+}, function(err){
+  console.error('Firestore error:',err);
+  showToast('Ошибка подключения к базе','error');
+  _bookingsReady=true;
+  render();
+});
+
+// Одноразовая чистка мусора (как в v1/v2): archived/deleted-записи удаляются из Firestore
+db.collection('bookings').get().then(function(snap){
+  var toDelete=[];
+  snap.forEach(function(doc){
+    var d=doc.data();
+    if(d.archived||d.deleted)toDelete.push(doc.ref);
+  });
+  if(!toDelete.length)return;
+  console.log('Cleaning up '+toDelete.length+' archived/deleted bookings...');
+  toDelete.forEach(function(ref){ref.delete().catch(function(){})});
+}).catch(function(){});
+
+/* ==========================================================
+   4. Время и даты (локальное время, минуты от эпохи)
+   ========================================================== */
+function pad2(n){return String(n).padStart(2,'0')}
+function isoOf(d){return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())}
+function getTodayISO(){return isoOf(new Date())}
+function shiftISO(iso,n){
+  var p=String(iso).split('-');
+  var d=new Date(parseInt(p[0],10),parseInt(p[1],10)-1,parseInt(p[2],10));
+  d.setDate(d.getDate()+n);
+  return isoOf(d);
+}
+function toMinutes(date,time){
+  if(!date||!time)return null;
+  var t=new Date(date+'T'+time+':00');
+  if(isNaN(t.getTime()))return null;
+  return Math.floor(t.getTime()/60000);
+}
+function dayStart(iso){return toMinutes(iso,'00:00')}
+function nowMin(){return Math.floor(Date.now()/60000)}
+function timeOf(min){var d=new Date(min*60000);return pad2(d.getHours())+':'+pad2(d.getMinutes())}
+function minutesToLabel(min){var d=new Date(min*60000);return {iso:isoOf(d),time:pad2(d.getHours())+':'+pad2(d.getMinutes())}}
+function fmtDate(iso){if(!iso)return'';var p=iso.split('-');return p[2]+'.'+p[1]+'.'+p[0]}
+function fmtDM(iso){if(!iso)return'';var p=iso.split('-');return p[2]+'.'+p[1]}
+var WEEKDAYS=['вс','пн','вт','ср','чт','пт','сб'];
+function fmtDateFull(iso){
+  if(!iso)return'';
+  var p=iso.split('-');
+  var d=new Date(parseInt(p[0],10),parseInt(p[1],10)-1,parseInt(p[2],10));
+  return p[2]+'.'+p[1]+'.'+p[0]+', '+WEEKDAYS[d.getDay()];
+}
+var MONTHS=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+var WEEKDAYS_FULL=['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+function fmtDayHuman(iso){
+  var p=String(iso).split('-');
+  var d=new Date(parseInt(p[0],10),parseInt(p[1],10)-1,parseInt(p[2],10));
+  return parseInt(p[2],10)+' '+MONTHS[d.getMonth()]+', '+WEEKDAYS_FULL[d.getDay()];
+}
+function dayWord(iso){
+  if(iso===getTodayISO())return 'Сегодня';
+  if(iso===shiftISO(getTodayISO(),1))return 'Завтра';
+  return fmtDate(iso);
+}
+function fmtPhone(phone){
+  if(!phone)return'';
+  var c=String(phone).replace(/[^\d+]/g,'');
+  if(c.length===12&&c.indexOf('+7')===0)return'+7 ('+c.substr(2,3)+') '+c.substr(5,3)+'-'+c.substr(8,2)+'-'+c.substr(10,2);
+  if(c.length===11&&(c.charAt(0)==='8'||c.charAt(0)==='7'))return'+7 ('+c.substr(1,3)+') '+c.substr(4,3)+'-'+c.substr(7,2)+'-'+c.substr(9,2);
+  return phone;
+}
+function fmtCar(car){return car?String(car).replace(/\s+/g,' ').trim().toUpperCase():''}
+function esc(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function jsq(s){
+  return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/</g,'\\u003c');
+}
+
+/* ==========================================================
+   5. ЕДИНОЕ ПРАВИЛО ЗАНЯТОСТИ (как в v2)
+   Бронь занимает беседку на дату D, если [start, end)
+   пересекает [00:00 D, 00:00 D+1). Конец = начало → не конфликт.
+   ========================================================== */
+var ARCHIVE_GRACE_MIN=3*60;   // только для автоархивации и подписи «освободилась», НЕ блокирует
+
+function durationHours(b){
+  var d=parseInt(b.duration,10);
+  return (d>0)?d:12;          // пустой duration = 12 часов
+}
+function bookingStart(b){return toMinutes(b.date,b.time)}
+function bookingEnd(b){
+  var s=bookingStart(b);
+  if(s===null)return null;
+  return s+durationHours(b)*60;
+}
+function intervalsOverlap(aS,aE,bS,bE){return aS<bE&&bS<aE}
+function overlapsDay(b,iso){
+  var s=bookingStart(b),e=bookingEnd(b);
+  if(s===null||e===null)return false;
+  var ds=dayStart(iso);
+  return intervalsOverlap(s,e,ds,ds+1440);
+}
+function bookingArchiveAt(b){
+  var e=bookingEnd(b);
+  return e===null?null:e+ARCHIVE_GRACE_MIN;
+}
+function isBookingExpired(b){
+  var e=bookingEnd(b);
+  return e!==null&&e<=nowMin();
+}
+// Конец брони в контексте дня: «21:00» или «08:00 +1д»
+function endLabelOn(min,iso){
+  var ds=dayStart(iso);
+  return timeOf(min)+(min>=ds+1440?' +1д':'');
+}
+function endTimeLabel(b){
+  var e=bookingEnd(b);
+  if(e===null)return'—';
+  var p=minutesToLabel(e);
+  var days=Math.round((dayStart(p.iso)-dayStart(b.date))/1440);
+  if(days<=0)return p.time;
+  if(days===1)return p.time+' +1д';
+  return fmtDate(p.iso)+' '+p.time;
+}
+// Полный интервал: «13.09 14:00 – 22:00» / «12.09 20:00 – 14.09 08:00»
+function fmtInterval(b){
+  var s=bookingStart(b),e=bookingEnd(b);
+  if(s===null||e===null)return'—';
+  var sp=minutesToLabel(s),ep=minutesToLabel(e);
+  var right=(ep.iso===sp.iso?'':fmtDate(ep.iso)+' ')+ep.time;
+  return fmtDate(sp.iso)+' '+sp.time+' – '+right;
+}
+// Интервал применительно к конкретному дню (для карточек и шторки)
+function intervalForDate(b,iso){
+  var s=bookingStart(b),e=bookingEnd(b);
+  if(s===null||e===null)return'—';
+  var ds=dayStart(iso);
+  var sp=minutesToLabel(s),ep=minutesToLabel(e);
+  var days=Math.round((dayStart(ep.iso)-dayStart(sp.iso))/1440);
+  if(s>=ds){
+    var endTxt=ep.time+(days>0?(days===1?' +1д':' +'+days+'д'):'');
+    return sp.time+'–'+endTxt;
+  }
+  return 'до '+ep.time+(ep.iso>iso?' +1д':'')+' (с '+fmtDM(sp.iso)+' '+sp.time+')';
+}
+// Все брони беседки, попадающие на день (включая начавшиеся накануне)
+function bookingsOf(gz,iso){
+  var key=String(gz).trim().toLowerCase();
+  return _bookings
+    .filter(function(b){
+      return String(b.gazeboNumber||'').trim().toLowerCase()===key&&
+        !b.deleted&&!b.archived&&overlapsDay(b,iso);
+    })
+    .map(function(b){return {b:b,s:bookingStart(b),e:bookingEnd(b)}})
+    .filter(function(iv){return iv.s!==null&&iv.e!==null})
+    .sort(function(a,b){return a.s-b.s});
+}
+// Конфликты для формы: пересечение интервалов, excludeId — при правке своей же записи
+function getGazeboConflicts(gazebo,date,time,duration,excludeId){
+  if(!gazebo||!date||!time)return[];
+  var gzKey=String(gazebo).trim().toLowerCase();
+  var startMin=toMinutes(date,time);
+  if(startMin===null)return[];
+  var h=parseInt(duration,10);
+  if(!(h>0))h=12;
+  var endMin=startMin+h*60;
+  return _bookings.filter(function(b){
+    if(b.id===excludeId)return false;
+    if(b.deleted||b.archived)return false;
+    if(String(b.gazeboNumber||'').trim().toLowerCase()!==gzKey)return false;
+    var bS=bookingStart(b),bE=bookingEnd(b);
+    if(bS===null||bE===null)return false;
+    return intervalsOverlap(startMin,endMin,bS,bE);
+  }).sort(function(a,b){return bookingStart(a)-bookingStart(b)});
+}
+// Кто сейчас на беседках
+function liveNow(){
+  var now=nowMin();
+  return _bookings
+    .filter(function(b){return !b.deleted&&!b.archived;})
+    .map(function(b){return {b:b,s:bookingStart(b),e:bookingEnd(b)}})
+    .filter(function(iv){return iv.s!==null&&iv.e!==null&&iv.s<=now&&now<iv.e})
+    .sort(function(a,b){return a.e-b.e});
+}
+/* Статус беседки на дату — для сетки */
+function gzStatus(gz,iso){
+  var today=getTodayISO(),now=nowMin();
+  var ivs=bookingsOf(gz,iso);
+
+  if(iso<today){
+    if(!ivs.length)return {state:'past',text:'броней не было',note:fmtDM(iso)};
+    return {state:'past',text:'броней: '+ivs.length,note:intervalForDate(ivs[0].b,iso)};
+  }
+
+  if(iso===today){
+    var cur=null;
+    ivs.forEach(function(iv){if(iv.s<=now&&now<iv.e)cur=iv});
+    if(cur)return {state:'busy',text:'занята до '+endLabelOn(cur.e,iso),note:cur.b.clientName||'без имени'};
+    var past=null;
+    ivs.forEach(function(iv){if(iv.e<=now&&(!past||iv.e>past.e))past=iv});
+    if(past&&(now-past.e)<ARCHIVE_GRACE_MIN)
+      return {state:'freed',text:'освободилась в '+timeOf(past.e),note:'была: '+(past.b.clientName||'без имени')};
+    var nxt=null;
+    ivs.forEach(function(iv){if(iv.s>now&&(!nxt||iv.s<nxt.s))nxt=iv});
+    return {state:'free',text:'свободна',note:nxt?('бронь с '+timeOf(nxt.s)):'до конца дня'};
+  }
+
+  // будущий день
+  if(!ivs.length)return {state:'free',text:'свободна',note:'весь день'};
+  var ds=dayStart(iso),de=ds+1440;
+  var merged=[],curM=null;
+  ivs.forEach(function(iv){
+    if(!curM){curM={s:iv.s,e:iv.e}}
+    else if(iv.s<=curM.e){curM.e=Math.max(curM.e,iv.e)}
+    else{merged.push(curM);curM={s:iv.s,e:iv.e}}
+  });
+  if(curM)merged.push(curM);
+  if(merged.length===1&&merged[0].s<=ds&&merged[0].e>=de)
+    return {state:'busy',text:'занята весь день',note:ivs[0].b.clientName||'без имени'};
+  return {state:'busy',text:'занята',note:intervalForDate(ivs[0].b,iso)+(ivs.length>1?(' · ещё '+(ivs.length-1)):'')};
+}
+function summaryFor(iso){
+  var free=0,busy=0,soon=0,now=nowMin(),today=getTodayISO();
+  SORTED_GAZEBOS.forEach(function(gz){
+    var st=gzStatus(gz,iso);
+    if(st.state==='busy'){
+      busy++;
+      if(iso===today){
+        var ivs=bookingsOf(gz,iso),cur=null;
+        ivs.forEach(function(iv){if(iv.s<=now&&now<iv.e)cur=iv});
+        if(cur&&cur.e-now<=60)soon++;
+      }
+    }else if(st.state!=='past'){
+      free++;
+    }
+  });
+  return {free:free,busy:busy,soon:soon};
+}
+
+/* ==========================================================
+   6. Список беседок (дословно как в v1/v2)
+   ========================================================== */
+var ALL_GAZEBOS='1/15,1/14,1/13,1/12,1/11,1/10,1/9,1/8,1/7,1/6,1/5,1/4,1/3,1/2,1/1,1,2,3,3/1,4,5,6,7,7/1,8,9,10,11,12,13,14,14/1,14/2,14/3,15,15/1,16,17,18,19,20,21,22,23,24,25,26,27,28,29'.split(',');
+function sortGazebos(arr){
+  return arr.slice().sort(function(a,b){
+    var am=a.split('/'),bm=b.split('/');
+    var ai=parseInt(am[0],10)||0,bi=parseInt(bm[0],10)||0;
+    if(ai!==bi)return ai-bi;
+    var as=am[1]?parseInt(am[1],10):0,bs=bm[1]?parseInt(bm[1],10):0;
+    return as-bs;
+  });
+}
+var SORTED_GAZEBOS=sortGazebos(ALL_GAZEBOS);
+
+/* ==========================================================
+   7. Экраны: состояние и переключение
+   ========================================================== */
+var currentTab='today';
+var selectedDate=getTodayISO();     // дата экрана «Беседки»
+var jView='book';                   // журнал: 'book' | 'archive'
+var openedGz=null,openedIso=null;   // открытая шторка беседки
+
+function switchTab(tab){
+  currentTab=tab;
+  ['today','gazebos','journal','busy'].forEach(function(t){
+    var sc=document.getElementById('sc'+t.charAt(0).toUpperCase()+t.slice(1));
+    if(sc)sc.classList.toggle('active',t===tab);
+    var tb=document.getElementById('t'+t.charAt(0).toUpperCase()+t.slice(1));
+    if(tb)tb.classList.toggle('on',t===tab);
+  });
+  render();
+  window.scrollTo(0,0);
+}
+
+function renderHeader(){
+  var kicker=document.getElementById('hdrKicker'),
+      title=document.getElementById('hdrTitle'),
+      sub=document.getElementById('hdrSub');
+  if(currentTab==='today'){
+    kicker.textContent='Сегодня';
+    title.textContent=fmtDayHuman(getTodayISO());
+    sub.textContent='Сейчас '+timeOf(nowMin())+' · беседки и их день';
+  }else if(currentTab==='gazebos'){
+    kicker.textContent='Беседки';
+    title.textContent=dayWord(selectedDate);
+    sub.textContent=fmtDayHuman(selectedDate);
+  }else if(currentTab==='journal'){
+    kicker.textContent='Журнал';
+    title.textContent=jView==='archive'?'Архив':'Заявки';
+    sub.textContent=fmtDayHuman(getTodayISO());
+  }else{
+    var n=liveNow().length;
+    kicker.textContent='Сейчас';
+    title.textContent='Занятые';
+    sub.textContent=n?('на беседках: '+n):'все беседки свободны';
+  }
+}
+
+/* ---------- 1. Сегодня ---------- */
+function gzCardHTML(gz,iso){
+  var st=gzStatus(gz,iso);
+  return '<button class="gz s-'+st.state+'" onclick="openGazebo(\''+jsq(gz)+'\',\''+iso+'\')">'+
+    '<span class="gz-dot"></span>'+
+    '<span class="gz-num">'+esc(gz)+'</span>'+
+    '<span class="gz-wrap"><span class="gz-state">'+esc(st.text)+'</span>'+
+    (st.note?'<span class="gz-note">'+esc(st.note)+'</span>':'')+'</span>'+
+  '</button>';
+}
+function renderToday(){
+  var iso=getTodayISO();
+  var s=summaryFor(iso);
+  var html=''+
+    '<div class="summary">'+
+      '<div class="sum-item"><div class="sum-val green">'+s.free+'</div><div class="sum-lbl">свободно</div></div>'+
+      '<div class="sum-item"><div class="sum-val orange">'+s.busy+'</div><div class="sum-lbl">занято сейчас</div></div>'+
+      '<div class="sum-item"><div class="sum-val">'+s.soon+'</div><div class="sum-lbl">освободятся<br>в ближайший час</div></div>'+
+    '</div>'+
+    '<div class="sect">Беседки · тапните, чтобы увидеть день</div>'+
+    '<div class="grid">'+SORTED_GAZEBOS.map(function(gz){return gzCardHTML(gz,iso)}).join('')+'</div>';
+  document.getElementById('scToday').innerHTML=html;
+}
+
+/* ---------- 2. Беседки ---------- */
+function renderGazebos(){
+  var iso=selectedDate;
+  document.getElementById('gDate').value=iso;
+  var today=getTodayISO(),tmr=shiftISO(today,1);
+  document.getElementById('gSegToday').classList.toggle('on',iso===today);
+  document.getElementById('gSegTomorrow').classList.toggle('on',iso===tmr);
+  var s=summaryFor(iso);
+  document.getElementById('gSummary').textContent=
+    'Свободно: '+s.free+' · Занято: '+s.busy+' · Всего: '+SORTED_GAZEBOS.length+(iso<today?' · день прошёл':'');
+  document.getElementById('gGrid').innerHTML=SORTED_GAZEBOS.map(function(gz){return gzCardHTML(gz,iso)}).join('');
+}
+function setGridDay(iso){
+  selectedDate=iso;
+  renderGazebos();
+  if(currentTab==='gazebos')window.scrollTo(0,0);
+}
+function onDayInput(){
+  var v=document.getElementById('gDate').value;
+  if(v)selectedDate=v;
+  renderGazebos();
+}
+function stepDay(delta){setGridDay(shiftISO(selectedDate,delta))}
+
+/* ---------- 3. Журнал ---------- */
+function setJournalView(v){
+  jView=v;
+  document.getElementById('jSegBook').classList.toggle('on',v==='book');
+  document.getElementById('jSegArch').classList.toggle('on',v==='archive');
+  renderHeader();
+  renderJournal();
+}
+var jFilter={preset:'all',from:'',to:''};
+function syncFilterInputs(){
+  document.getElementById('rangeFrom').value=jFilter.from||'';
+  document.getElementById('rangeTo').value=jFilter.to||'';
+  document.getElementById('rangeRow').hidden=(jFilter.preset!=='custom');
+  document.querySelectorAll('#filterChips .chip').forEach(function(c){
+    c.classList.toggle('on',c.dataset.preset===jFilter.preset);
+  });
+}
+function setPreset(p){
+  var t=getTodayISO();
+  jFilter.preset=p;
+  if(p==='today'){jFilter.from=t;jFilter.to=t}
+  else if(p==='tomorrow'){var tm=shiftISO(t,1);jFilter.from=tm;jFilter.to=tm}
+  else if(p==='week'){jFilter.from=t;jFilter.to=shiftISO(t,6)}
+  else if(p==='custom'){/* оставляем уже введённые даты */}
+  else {jFilter.from='';jFilter.to=''}
+  syncFilterInputs();
+  renderJournal();
+  if(p==='custom'&&!document.getElementById('rangeFrom').value){
+    document.getElementById('rangeFrom').value=t;
+    document.getElementById('rangeTo').value=shiftISO(t,6);
+    jFilter.from=t;jFilter.to=shiftISO(t,6);
+    renderJournal();
+  }
+}
+function onRangeInput(){
+  jFilter.from=document.getElementById('rangeFrom').value||'';
+  jFilter.to=document.getElementById('rangeTo').value||'';
+  jFilter.preset='custom';
+  syncFilterInputs();
+  renderJournal();
+}
+function clearRange(){
+  jFilter.from='';jFilter.to='';jFilter.preset='all';
+  syncFilterInputs();
+  renderJournal();
+}
+function inRange(iso){
+  if(!jFilter.from&&!jFilter.to)return true;
+  if(jFilter.from&&iso<jFilter.from)return false;
+  if(jFilter.to&&iso>jFilter.to)return false;
+  return true;
+}
+// Поиск: имя, телефон, авто, беседка (общий для Заявок и Архива)
+function searchFilter(list){
+  var s=document.getElementById('searchInput').value.trim().toLowerCase();
+  if(!s)return list;
+  var digits=s.replace(/[^\d]/g,'');
+  return list.filter(function(b){
+    var name=String(b.clientName||'').toLowerCase();
+    var phoneDigits=String(b.phone||'').replace(/[^\d]/g,'');
+    var car=String(b.carNumber||'').toLowerCase();
+    var gz=String(b.gazeboNumber||'').toLowerCase();
+    return name.indexOf(s)>=0||
+      (digits!==''&&phoneDigits.indexOf(digits)>=0)||
+      car.indexOf(s)>=0||gz.indexOf(s)>=0;
+  });
+}
+function journalRowHTML(b){
+  var meta=[];
+  if(b.phone)meta.push(esc(fmtPhone(b.phone)));
+  if(b.carNumber)meta.push(esc(fmtCar(b.carNumber)));
+  if(b.prepay)meta.push(esc(b.prepay));
+  var e=bookingEnd(b),ds=dayStart(b.date);
+  var endTxt=timeOf(e)+(e>=ds+1440?'<br>+1д':'');
+  return '<div class="row">'+
+    '<div class="row-time"><b>'+esc(b.time||'—')+'</b><span>'+endTxt+'</span></div>'+
+    '<div class="row-body">'+
+      '<div class="row-name">'+esc(b.clientName||'без имени')+
+        ' <span class="tag">№'+esc(b.gazeboNumber)+'</span>'+
+        (durationHours(b)>=24?' <span class="tag muted">'+durationHours(b)+' ч</span>':'')+'</div>'+
+      '<div class="row-meta">'+(meta.join(' · ')||'без деталей')+'</div>'+
+    '</div>'+
+    '<div class="row-acts">'+
+      '<button class="ibtn" title="Изменить" aria-label="Изменить" onclick="openEdit(\''+jsq(b.id)+'\')"><svg class="icon"><use href="#i-edit"/></svg></button>'+
+      '<button class="ibtn red" title="Удалить" aria-label="Удалить" onclick="askDelete(\''+jsq(b.id)+'\')"><svg class="icon"><use href="#i-trash"/></svg></button>'+
+    '</div>'+
+  '</div>';
+}
+function renderJournal(){
+  var listEl=document.getElementById('jList');
+  var countEl=document.getElementById('jCount');
+  if(jView==='archive'){
+    var arch=searchFilter(_bookings.filter(function(b){
+      return !b.deleted&&!b.archived&&inRange(b.date)&&isBookingExpired(b);
+    })).sort(function(a,b){
+      var c=a.date+(a.time||''),d=b.date+(b.time||'');
+      return c<d?1:c>d?-1:0;
+    });
+    countEl.innerHTML='Завершённых: <b>'+arch.length+'</b> · <button class="linkbtn" onclick="archiveExpired(true)">очистить</button>';
+    if(!arch.length){
+      listEl.innerHTML='<div class="group"><div class="empty">Архив пуст — здесь завершённые брони</div></div>';
+      return;
+    }
+    var days=[];
+    arch.forEach(function(b){
+      var last=days[days.length-1];
+      if(!last||last.iso!==b.date)days.push({iso:b.date,items:[b]});
+      else last.items.push(b);
+    });
+    listEl.innerHTML=days.map(function(d){
+      return '<div class="sect">'+esc(fmtDateFull(d.iso))+'</div>'+
+        '<div class="group">'+d.items.map(function(b){
+          return '<div class="row">'+
+            '<div class="row-time"><b>'+esc(b.time||'—')+'</b><span>'+esc(endTimeLabel(b))+'</span></div>'+
+            '<div class="row-body">'+
+              '<div class="row-name">'+esc(b.clientName||'без имени')+' <span class="tag">№'+esc(b.gazeboNumber)+'</span> <span class="tag muted">завершена</span></div>'+
+              '<div class="row-meta">'+esc(fmtInterval(b))+(b.prepay?' · '+esc(b.prepay):'')+'</div>'+
+            '</div>'+
+            '<div class="row-acts">'+
+              '<button class="ibtn red" title="Удалить навсегда" aria-label="Удалить навсегда" onclick="askDelete(\''+jsq(b.id)+'\',true)"><svg class="icon"><use href="#i-trash"/></svg></button>'+
+            '</div>'+
+          '</div>';
+        }).join('')+'</div>';
+    }).join('');
+    return;
+  }
+
+  var bs=searchFilter(_bookings.filter(function(b){return !b.deleted&&!b.archived&&inRange(b.date)}))
+    .sort(function(a,b){
+      var va=(a.date||'')+(a.time||''),vb=(b.date||'')+(b.time||'');
+      return va<vb?-1:va>vb?1:0;
+    });
+  countEl.innerHTML='Найдено: <b>'+bs.length+'</b>';
+  if(!bs.length){
+    listEl.innerHTML='<div class="group"><div class="empty">Броней нет на выбранные даты</div></div>';
+    return;
+  }
+  var html='';
+  var days=[];
+  bs.forEach(function(b){
+    var last=days[days.length-1];
+    if(!last||last.iso!==b.date)days.push({iso:b.date,items:[b]});
+    else last.items.push(b);
+  });
+  html=days.map(function(d){
+    return '<div class="sect">'+esc(fmtDateFull(d.iso))+' · '+esc(dayWord(d.iso))+'</div>'+
+      '<div class="group">'+d.items.map(journalRowHTML).join('')+'</div>';
+  }).join('');
+  listEl.innerHTML=html;
+}
+
+/* ---------- 4. Занятые ---------- */
+function renderBusy(){
+  var list=liveNow(),now=nowMin();
+  var html='';
+  if(!list.length){
+    html='<div class="group"><div class="empty">Все беседки свободны</div></div>';
+  }else{
+    html='<div class="sect">Сейчас на беседках · '+list.length+'</div><div class="group">'+
+      list.map(function(iv){
+        var b=iv.b,left=iv.e-now,h=Math.floor(left/60),m=left%60;
+        var leftTxt=left<60?('через '+left+' мин'):('через '+h+' ч'+(m?' '+m+' мин':''));
+        var ds=dayStart(b.date);
+        return '<div class="row">'+
+          '<div class="row-time"><b>'+timeOf(iv.s)+'</b><span>'+timeOf(iv.e)+(iv.e>=ds+1440?'<br>+1д':'')+'</span></div>'+
+          '<div class="row-body">'+
+            '<div class="row-name">'+esc(b.clientName||'без имени')+' <span class="tag">№'+esc(b.gazeboNumber)+'</span></div>'+
+            '<div class="row-meta">освободится в '+timeOf(iv.e)+(iv.e>=dayStart(getTodayISO())+1440?' +1д':'')+' ('+leftTxt+')</div>'+
+          '</div>'+
+          '<div class="row-acts">'+
+            '<button class="ibtn" title="Изменить" aria-label="Изменить" onclick="openEdit(\''+jsq(b.id)+'\')"><svg class="icon"><use href="#i-edit"/></svg></button>'+
+          '</div>'+
+        '</div>';
+      }).join('')+'</div>';
+  }
+  document.getElementById('scBusy').innerHTML=html;
+}
+
+/* ---------- Общий рендер ---------- */
+function render(){
+  renderHeader();
+  renderToday();
+  renderBusy();
+  renderGazebos();
+  renderJournal();
+  if(openedGz)renderGazeboSheet();
+}
+
+/* ==========================================================
+   8. Шторки
+   ========================================================== */
+function openSheet(id){
+  document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on')});
+  document.getElementById(id).classList.add('on');
+  document.getElementById('scrim').classList.add('on');
+  document.body.classList.add('locked');
+}
+function closeSheets(){
+  document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('on')});
+  document.getElementById('scrim').classList.remove('on');
+  document.body.classList.remove('locked');
+  openedGz=null;openedIso=null;_returnTo=null;
+}
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  if(document.getElementById('dlgOverlay').classList.contains('on'))closeDlg();
+  else closeSheets();
+});
+
+/* ==========================================================
+   9. Шторка дня беседки: таймлайн 07:00–24:00 + список броней
+   ========================================================== */
+var TL_S=7*60,TL_E=24*60,HOUR_PX=54;
+
+function renderGazeboSheet(){
+  var gz=openedGz,iso=openedIso||selectedDate;
+  if(!gz)return;
+  var ds=dayStart(iso);
+  var ivs=bookingsOf(gz,iso);
+
+  var clipped=ivs.map(function(iv){
+    return {s:Math.max(iv.s,ds+TL_S),e:Math.min(iv.e,ds+TL_E),raw:iv};
+  }).filter(function(c){return c.e>c.s}).sort(function(a,b){return a.s-b.s});
+
+  var gaps=[],prev=ds+TL_S;
+  clipped.forEach(function(c){
+    if(c.s>prev)gaps.push({s:prev,e:c.s});
+    prev=Math.max(prev,c.e);
+  });
+  if(prev<ds+TL_E)gaps.push({s:prev,e:ds+TL_E});
+
+  var trackH=(TL_E-TL_S)/60*HOUR_PX;
+  var y=function(min){return (min-(ds+TL_S))/60*HOUR_PX};
+
+  var blocks=clipped.map(function(c){
+    var top=y(c.s),h=(c.e-c.s)/60*HOUR_PX,b=c.raw.b;
+    var label=c.raw.s<ds
+      ? ('до '+timeOf(c.raw.e)+(c.raw.e>ds+1440?' +1д':'')+' (с ночи)')
+      : (timeOf(c.raw.s)+'–'+timeOf(c.raw.e)+(c.raw.e>ds+1440?' +1д':''));
+    var inner=h>44?('<div class="n">'+esc(b.clientName||'без имени')+'</div>'):'';
+    return '<div class="tl-block" style="top:'+top+'px;height:'+h+'px"><div class="t">'+label+'</div>'+inner+'</div>';
+  }).join('');
+
+  var gapsHTML=gaps.filter(function(g){return (g.e-g.s)>=30}).map(function(g){
+    var top=y(g.s),h=(g.e-g.s)/60*HOUR_PX;
+    var t=timeOf(g.s)+'–'+timeOf(g.e)+(g.e>ds+1440?' +1д':'');
+    return '<button class="tl-gap" style="top:'+top+'px;height:'+Math.max(h,30)+'px" '+
+      'onclick="newFromSlot(\''+jsq(gz)+'\',\''+iso+'\',\''+timeOf(g.s)+'\')">+ '+t+'</button>';
+  }).join('');
+
+  var nowLine='';
+  if(iso===getTodayISO()){
+    var nm=nowMin();
+    if(nm>=ds+TL_S&&nm<=ds+TL_E)nowLine='<div class="tl-now" style="top:'+y(nm)+'px"></div>';
+  }
+
+  var hours='';
+  for(var h=7;h<=24;h++)hours+='<div class="tl-hour">'+pad2(h)+':00</div>';
+
+  var rows=ivs.length?ivs.map(function(iv){
+    var b=iv.b,meta=[];
+    if(b.phone)meta.push(esc(fmtPhone(b.phone)));
+    if(b.carNumber)meta.push(esc(fmtCar(b.carNumber)));
+    if(b.prepay)meta.push(esc(b.prepay));
+    return '<div class="row">'+
+      '<div class="row-time"><b>'+timeOf(iv.s)+'</b><span>'+timeOf(iv.e)+(iv.e>=ds+1440?'<br>+1д':'')+'</span></div>'+
+      '<div class="row-body">'+
+        '<div class="row-name">'+esc(b.clientName||'без имени')+' <span class="tag muted">'+durationHours(b)+' ч</span></div>'+
+        '<div class="row-meta">'+(meta.join(' · ')||'без деталей')+'</div>'+
+      '</div>'+
+      '<div class="row-acts">'+
+        '<button class="ibtn" title="Изменить" aria-label="Изменить" onclick="openEdit(\''+jsq(b.id)+'\')"><svg class="icon"><use href="#i-edit"/></svg></button>'+
+        '<button class="ibtn red" title="Удалить" aria-label="Удалить" onclick="askDelete(\''+jsq(b.id)+'\')"><svg class="icon"><use href="#i-trash"/></svg></button>'+
+      '</div>'+
+    '</div>';
+  }).join(''):'<div class="empty">На этот день броней нет — всё время свободно</div>';
+
+  var busyMin=clipped.reduce(function(acc,c){return acc+(c.e-c.s)},0);
+
+  document.getElementById('gzTitle').textContent='Беседка №'+gz;
+  document.getElementById('gzSub').textContent=dayWord(iso)+' · '+fmtDM(iso)+' · '+
+    (ivs.length?('броней: '+ivs.length+', занято '+Math.round(busyMin/6)/10+' ч'):'свободна весь день');
+  document.getElementById('gzBody').innerHTML=
+    '<div class="tl-wrap">'+
+      '<div class="tl-legend"><span>День беседки</span><span>ось <b>07:00–24:00</b></span></div>'+
+      '<div class="tl">'+
+        '<div class="tl-hours">'+hours+'</div>'+
+        '<div class="tl-track" style="height:'+trackH+'px">'+blocks+gapsHTML+nowLine+'</div>'+
+      '</div>'+
+      '<div class="tl-foot">Пунктирные окна — свободное время, тапните, чтобы поставить бронь. '+
+      'Красная линия — текущее время. Занято за день: '+Math.round(busyMin/6)/10+' ч.</div>'+
+    '</div>'+
+    '<div class="sect">Брони этого дня</div>'+
+    '<div class="group">'+rows+'</div>';
+}
+function openGazebo(gz,iso){
+  openedGz=gz;
+  openedIso=iso||selectedDate;
+  renderGazeboSheet();
+  openSheet('shGazebo');
+}
+function newFromSlot(gz,iso,time){
+  openNew(gz,iso,time,{gz:gz,iso:iso});
+}
+// «Забронировать» из шторки: подставляем первое свободное окно (или 12:00)
+function newFromGazebo(){
+  var gz=openedGz||SORTED_GAZEBOS[0],iso=openedIso||selectedDate;
+  var ds=dayStart(iso);
+  var ivs=bookingsOf(gz,iso).map(function(iv){return {s:Math.max(iv.s,ds+TL_S),e:Math.min(iv.e,ds+TL_E)}});
+  var prev=ds+TL_S,free=null;
+  for(var i=0;i<ivs.length;i++){
+    if(ivs[i].s-prev>=60){free=prev;break}
+    prev=Math.max(prev,ivs[i].e);
+  }
+  if(free===null&&prev<ds+TL_E)free=prev;
+  if(free===null){
+    openNew(gz,iso,'12:00',{gz:gz,iso:iso});
+    showToast('Свободных окон не нашлось — укажите время вручную','info');
+    return;
+  }
+  openNew(gz,iso,timeOf(free),{gz:gz,iso:iso});
+}
+
+/* ==========================================================
+   10. Форма брони (создание и правка) — реальная запись в базу
+   ========================================================== */
+var _returnTo=null;
+function fillGazeboOptions(){
+  var dl=document.getElementById('gzList');
+  if(dl&&!dl.children.length){
+    dl.innerHTML=SORTED_GAZEBOS.map(function(g){return '<option value="'+esc(g)+'"></option>'}).join('');
+  }
+}
+// Ближайшие полчаса «вперёд». Поздно вечером (после 23:30) остаёмся в текущих
+// сутках и ставим 23:30 — иначе дата и время разъезжались через полночь.
+function nextHalfHour(){
+  var d=new Date();
+  var h=d.getHours(),m=d.getMinutes();
+  if(m<30){return pad2(h)+':30'}
+  if(h<23){return pad2(h+1)+':00'}
+  return '23:30';
+}
+function formVals(){
+  return {
+    id:document.getElementById('editId').value,
+    name:document.getElementById('fName').value.trim(),
+    phone:document.getElementById('fPhone').value.trim(),
+    gz:document.getElementById('fGz').value.trim(),
+    date:document.getElementById('fDate').value,
+    time:document.getElementById('fTime').value,
+    dur:document.getElementById('fDur').value,
+    car:document.getElementById('fCar').value.trim(),
+    prepay:document.getElementById('fPrepay').value.trim()
+  };
+}
+function setFormHint(kind,html){
+  var el=document.getElementById('formHint');
+  el.className='hint '+kind;
+  el.innerHTML=html;
+}
+// Живая проверка: окончание + конфликты
+function updateForm(){
+  var v=formVals();
+  var s=toMinutes(v.date,v.time);
+  var el=document.getElementById('fEnd');
+  if(s===null){el.textContent='—'}
+  else{
+    var h=parseInt(v.dur,10);if(!(h>0))h=12;
+    var p=minutesToLabel(s+h*60);
+    var days=Math.round((dayStart(p.iso)-dayStart(v.date))/1440);
+    el.textContent=fmtDate(p.iso)+' в '+p.time+(days===1?' · +1 день':(days>1?' · +'+days+' дней':''));
+  }
+  if(!v.gz||!v.date||!v.time){setFormHint('ok','Заполните имя, беседку, дату и время заезда.');return}
+  var conf=getGazeboConflicts(v.gz,v.date,v.time,v.dur,v.id||undefined);
+  if(!conf.length){
+    var hh=parseInt(v.dur,10);if(!(hh>0))hh=12;
+    setFormHint('ok','<b>Свободно.</b> Беседка №'+esc(v.gz)+' будет занята на '+hh+' ч — с '+esc(v.time)+' '+esc(fmtDM(v.date))+' до '+esc(el.textContent)+'.');
+    return;
+  }
+  var items=conf.map(function(c){
+    return '<li>'+esc(fmtInterval(c))+' — '+esc(c.clientName||'без имени')+'</li>';
+  }).join('');
+  setFormHint('warn','<b>Беседка №'+esc(v.gz)+' занята в это время:</b><ul>'+items+'</ul>'+
+    '<a href="#" onclick="event.preventDefault();showGazeboFromForm(\''+jsq(v.gz)+'\',\''+jsq(v.date)+'\')">Посмотреть день беседки →</a>');
+}
+function showGazeboFromForm(gz,iso){
+  closeForm(true);
+  openGazebo(gz,iso);
+}
+function openNew(gz,iso,time,returnTo){
+  fillGazeboOptions();
+  _returnTo=returnTo||null;   // куда вернуться после сохранения (шторка дня беседки)
+  document.getElementById('editId').value='';
+  document.getElementById('formTitle').textContent='Новая бронь';
+  document.getElementById('formSubmit').textContent='Создать';
+  document.getElementById('fName').value='';
+  document.getElementById('fPhone').value='';
+  document.getElementById('fGz').value=gz||'';
+  document.getElementById('fDate').value=iso||selectedDate||getTodayISO();
+  document.getElementById('fTime').value=time||nextHalfHour();
+  document.getElementById('fDur').value='';
+  document.getElementById('fCar').value='';
+  document.getElementById('fPrepay').value='';
+  updateForm();
+  openSheet('shForm');
+  setTimeout(function(){document.getElementById('fName').focus()},320);
+}
+function openEdit(id){
+  var b=_bookings.find(function(x){return x.id===id});
+  if(!b){showToast('Запись не найдена','error');return}
+  fillGazeboOptions();
+  _returnTo=null;
+  document.getElementById('editId').value=b.id;
+  document.getElementById('formTitle').textContent='Правка брони';
+  document.getElementById('formSubmit').textContent='Сохранить';
+  document.getElementById('fName').value=b.clientName||'';
+  document.getElementById('fPhone').value=b.phone||'';
+  document.getElementById('fGz').value=b.gazeboNumber||'';
+  document.getElementById('fDate').value=b.date||'';
+  document.getElementById('fTime').value=b.time||'';
+  document.getElementById('fDur').value=b.duration||'';
+  document.getElementById('fCar').value=b.carNumber||'';
+  document.getElementById('fPrepay').value=b.prepay||'';
+  updateForm();
+  openSheet('shForm');
+}
+function closeForm(keepReturn){
+  document.getElementById('shForm').classList.remove('on');
+  if(document.querySelectorAll('.sheet.on').length===0){
+    document.getElementById('scrim').classList.remove('on');
+    document.body.classList.remove('locked');
+  }
+  if(!keepReturn)_returnTo=null;
+}
+function submitForm(){
+  var v=formVals();
+  if(!v.name||!v.gz||!v.date||!v.time){
+    setFormHint('warn','Заполните обязательные поля: имя, беседка, дата и время заезда.');
+    showToast('Заполните обязательные поля','error');
+    return;
+  }
+  var conf=getGazeboConflicts(v.gz,v.date,v.time,v.dur,v.id||undefined);
+  if(conf.length){
+    updateForm();
+    showToast('Беседка занята в это время','error');
+    return;
+  }
+  var payload={
+    clientName:v.name,phone:v.phone,gazeboNumber:v.gz,date:v.date,time:v.time,
+    carNumber:v.car,prepay:v.prepay,duration:v.dur
+  };
+  var ret=_returnTo;
+  _returnTo=null;
+
+  if(v.id){
+    db.collection('bookings').doc(v.id).set(payload,{merge:true}).then(function(){
+      showToast('Бронь обновлена');
+      closeForm(true);
+      if(ret)openGazebo(ret.gz,ret.iso);
+    }).catch(function(err){
+      showToast('Ошибка сохранения','error');console.error(err);
+    });
+  }else{
+    payload.archived=false;
+    payload.createdAt=firebase.firestore.FieldValue.serverTimestamp();
+    db.collection('bookings').add(payload).then(function(){
+      showToast('Бронь создана');
+      closeForm(true);
+      if(ret)openGazebo(ret.gz,ret.iso);
+    }).catch(function(err){
+      showToast('Ошибка создания','error');console.error(err);
+    });
+  }
+}
+
+/* ==========================================================
+   11. Удаление (реальный delete из базы)
+   ========================================================== */
+var _pendingDelete=null,_pendingForever=false;
+function askDelete(id,forever){
+  var b=_bookings.find(function(x){return x.id===id});
+  if(!b){showToast('Запись не найдена','error');return}
+  _pendingDelete=id;
+  _pendingForever=!!forever;
+  document.getElementById('dlgText').innerHTML=
+    'Клиент: <b>'+esc(b.clientName||'без имени')+'</b><br>'+
+    'Беседка №'+esc(b.gazeboNumber)+' · '+esc(fmtInterval(b))+'<br>'+
+    'Запись будет удалена из общей базы безвозвратно — её не увидят ни v1, ни v2.';
+  document.getElementById('dlgOk').textContent=forever?'Удалить навсегда':'Удалить';
+  document.getElementById('dlgOverlay').classList.add('on');
+}
+function closeDlg(){
+  _pendingDelete=null;_pendingForever=false;
+  document.getElementById('dlgOverlay').classList.remove('on');
+}
+function confirmDelete(){
+  var id=_pendingDelete;
+  if(!id)return;
+  db.collection('bookings').doc(id).delete().then(function(){
+    showToast('Запись удалена');
+  }).catch(function(err){
+    showToast('Ошибка удаления','error');console.error(err);
+  });
+  closeDlg();
+}
+
+/* ==========================================================
+   12. Экспорт CSV
+   ========================================================== */
+function exportCSV(){
+  var bs=searchFilter(_bookings.filter(function(b){return !b.deleted&&!b.archived&&inRange(b.date)}))
+    .sort(function(a,b){
+      var va=(a.date||'')+(a.time||''),vb=(b.date||'')+(b.time||'');
+      return va<vb?-1:va>vb?1:0;
+    });
+  if(!bs.length){showToast('Нет данных для экспорта','error');return}
+  var h='Дата;Заезд;Окончание;Беседка;Клиент;Телефон;Автомобиль;Предоплата;Период, ч\n';
+  var rows=bs.map(function(b){
+    return [fmtDate(b.date),b.time,endTimeLabel(b),'№'+b.gazeboNumber,b.clientName,b.phone,b.carNumber,b.prepay||'',durationHours(b)]
+      .map(function(v){return'"'+String(v==null?'':v).replace(/"/g,'""')+'"'}).join(';');
+  }).join('\n');
+  var blob=new Blob(['\uFEFF'+h+rows],{type:'text/csv;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;
+  a.download='zayavki_v3_'+getTodayISO()+'.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Экспортировано: '+bs.length);
+}
+
+/* ==========================================================
+   13. Архивация протухших (как в v1/v2: конец + 3 ч)
+   ========================================================== */
+function archiveExpired(manual){
+  var now=nowMin();
+  var toArchive=_bookings.filter(function(b){
+    if(b.archived||b.deleted)return false;
+    var a=bookingArchiveAt(b);
+    return a!==null&&a<now;
+  });
+  if(!toArchive.length){
+    if(manual)showToast('Нечего чистить — просроченных нет','info');
+    return;
+  }
+  toArchive.forEach(function(b){
+    db.collection('bookings').doc(b.id).update({archived:true}).catch(function(){});
+  });
+  if(manual)showToast('В архив отправлено: '+toArchive.length);
+}
+
+/* ==========================================================
+   14. Тост
+   ========================================================== */
+var _toastTimer=null;
+function showToast(msg,type){
+  var el=document.getElementById('toast');
+  var cls='toast on'+(type==='error'?' err':(type==='info'?' info':''));
+  el.className=cls;
+  el.textContent=msg;
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(function(){
+    el.className='toast'+(type==='error'?' err':(type==='info'?' info':''));
+  },2600);
+}
+
+/* ==========================================================
+   15. Старт
+   ========================================================== */
+var _started=false;
+function start(){
+  if(_started)return;
+  _started=true;
+  selectedDate=getTodayISO();
+  syncFilterInputs();
+  fillGazeboOptions();
+  render();
+  // Живые статусы: пересчёт раз в минуту
+  setInterval(function(){render()},60*1000);
+  // Автоархивация: первая проверка через 10 с, далее каждую минуту
+  setTimeout(archiveExpired,10*1000);
+  setInterval(archiveExpired,60*1000);
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./sw.js').catch(function(){});
+  }
+}
+// Форма: живая проверка при любом изменении
+['fName','fPhone','fGz','fDate','fTime','fDur','fCar','fPrepay'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el)el.addEventListener('input',updateForm);
+  if(el)el.addEventListener('change',updateForm);
+});
+
+if(isAuthenticated())start();
+</script>
+</body>
+</html>
